@@ -1,0 +1,8 @@
+[package]
+name = "ncurses-readline"
+version = "0.0.1"
+authors = ["Postmodern <postmodern.mod3@gmail.com>"]
+
+[dependencies]
+libc = "0.2.0"
+ncurses = "^5.80.0"

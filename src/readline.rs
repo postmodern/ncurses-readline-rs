@@ -36,16 +36,16 @@ extern {
 	fn add_history(line: *const c_char);
 }
 
-use Callbacks;
-use registered_callbacks;
-
+static mut input_callback: Option<fn(&str)> = None;
 static mut input_available: bool = false;
 static mut input_eof: bool = false;
 static mut input: i32 = 0;
 
+static mut redisplay_callback: Option<fn(&str, &str)> = None;
+
 const KEY_TAB: i32 = '\t' as i32;
 
-pub fn hook() {
+pub fn hook(input_func: fn(&str), redisplay_func: fn(&str, &str)) {
 	if unsafe { rl_bind_key(KEY_TAB, Some(rl_insert)) } != 0 {
 		panic!("invalid key passed to rl_bind_key()");
 	}
@@ -70,7 +70,10 @@ pub fn hook() {
 	// Handle input by manually feeding characters to readline.
 	unsafe {
 		rl_getc_function        = Some(getc);
+		input_callback          = Some(input_func);
 		rl_input_available_hook = Some(is_input_available);
+
+		redisplay_callback      = Some(redisplay_func);
 		rl_redisplay_function   = Some(redisplay_handler);
 	}
 }
@@ -107,6 +110,9 @@ pub fn unhook() {
 		input_available = false;
 		input_eof       = false;
 		input           = 0;
+		input_callback  = None;
+
+		redisplay_callback = None;
 	}
 }
 
@@ -131,11 +137,12 @@ extern "C" fn input_handler(ptr: *mut c_char) {
 	let line = unsafe { CStr::from_ptr(ptr) };
 
 	if line.to_bytes().len() > 0 {
+		let callback = unsafe { input_callback }.unwrap();
 		let slice = line.to_str().unwrap();
 
 		unsafe { add_history(ptr); }
 
-		registered_callbacks.unwrap().on_input(slice);
+		callback(slice);
 	}
 
 	unsafe { libc::free(ptr as *mut c_void); }
@@ -144,8 +151,9 @@ extern "C" fn input_handler(ptr: *mut c_char) {
 extern "C" fn redisplay_handler() {
 	let prompt   = unsafe { CStr::from_ptr(rl_display_prompt) };
 	let buffer   = unsafe { CStr::from_ptr(rl_line_buffer) };
+	let callback = unsafe { redisplay_callback.unwrap() };
 
-	registered_callbacks.unwrap().on_redisplay(
+	callback(
 		prompt.to_str().unwrap(),
 		buffer.to_str().unwrap()
 	);

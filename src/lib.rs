@@ -1,21 +1,12 @@
 extern crate libc;
 extern crate ncurses;
 
-pub trait Callbacks : Sync {
-	fn on_input(&self, buffer: &str);
-	fn on_redisplay(&self, prompt: &str, buffer: &str);
-}
-
-static mut registered_callbacks: Option<&Callbacks> = None;
-
 pub mod readline;
 
 use std::ptr;
 
-pub fn init<C: Callbacks>(callbacks: C) {
-	registered_callbacks = Some(callbacks);
-
-	readline::hook();
+pub fn init(input_func: fn(&str), redisplay_func: fn(&str, &str)) {
+	readline::hook(input_func, redisplay_func);
 
 	if ncurses::cbreak() == ncurses::ERR {
 		panic!("ncurses cbreak() failed");
@@ -46,8 +37,6 @@ pub fn deinit() {
 	ncurses::nl();
 	ncurses::echo();
 	ncurses::nocbreak();
-
-	registered_callbacks = None;
 }
 
 #[cfg(test)]
